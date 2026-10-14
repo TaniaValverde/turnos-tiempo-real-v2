@@ -27,7 +27,19 @@ persistente evita reutilizarlos.
 
 ## Configuración local
 
-Copie `.env.example` a `.env`. `DATABASE_PATH` puede ser una ruta absoluta,
+Desde la raíz del repositorio, copie `.env.example` a `.env` una sola vez y
+edite `CORS_ORIGINS` para el origen donde ejecutará Flutter Web. Luego
+instale las dependencias y arranque el backend desde `backend/`:
+
+```powershell
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
+Set-Location backend
+npm install
+npm start
+```
+
+El servidor usa el puerto 3000 por defecto (`PORT` permite cambiarlo).
+`DATABASE_PATH` puede ser una ruta absoluta,
 `:memory:` o una ruta relativa; las rutas relativas se resuelven desde
 `backend/`. El valor predeterminado es `backend/data/turnos.sqlite`.
 
@@ -40,6 +52,14 @@ se aplica a Express y Socket.IO.
 
 ## Pruebas
 
-Desde este directorio ejecute `npm test`. Las pruebas crean bases bajo el
-directorio temporal del sistema y las eliminan al terminar; no usan la base
-local configurada para desarrollo.
+Desde `backend/`, ejecute:
+
+```powershell
+npm test
+```
+
+Las pruebas crean bases bajo el directorio temporal del sistema y las
+eliminan al terminar; no usan la base local configurada para desarrollo.
+
+Última ejecución disponible (estos resultados no se volvieron a ejecutar al
+actualizar esta documentación): `npm test`, **37/37 aprobadas**.

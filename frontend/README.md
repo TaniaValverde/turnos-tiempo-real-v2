@@ -64,22 +64,29 @@ Reconectar el transporte no garantiza recuperar eventos perdidos. Por ello cada 
 
 La concurrencia se resuelve en el backend mediante una operación SQLite atómica que selecciona y cambia el turno pendiente; las escrituras REST notifican Socket.IO después del commit.
 
-## Verificación y evidencia pendientes de integración
+## Pruebas manuales y evidencia para el examen
 
-La existencia del frontend no acredita los 60 puntos. El backend actual todavía tiene servicios, rutas y sockets pendientes. Registrar resultados reales al integrar:
+Las siguientes comprobaciones se realizaron manualmente en dos ventanas del navegador. Las capturas, grabaciones o registros pueden adjuntarse posteriormente como evidencia:
 
-1. Abrir dos navegadores, registrar en A y comprobar aparición en B sin recargar.
-2. Llamar siguiente en A; comprobar el mismo número y estado en B.
-3. Con un solo pendiente, llamar simultáneamente desde A y B: solo una solicitud debe tener éxito. Guardar las respuestas HTTP. Con varios pendientes pueden ganar ambas solicitudes, pero deben recibir turnos distintos.
-4. Marcar atendido y revisar fecha/hora en el historial de ambos navegadores.
-5. Desconectar B, cambiar turnos en A y reconectar B: debe recuperar el estado vigente.
-6. Reiniciar el backend y comprobar persistencia y reconexión.
-7. Probar formularios vacíos, errores del servidor y ancho de pantalla pequeño.
+| Comprobación manual | Resultado reportado |
+| --- | --- |
+| Registrar en una ventana y comprobar la actualización en tiempo real en la otra | Realizada; los cambios se reflejaron entre ventanas |
+| Llamar turnos desde dos ventanas | Realizada; no se observaron asignaciones duplicadas |
+| Reiniciar Flutter y comprobar que los registros se conservan | Realizada; los registros persistieron |
+| Reiniciar el backend y comprobar que los registros y estados se conservan | Realizada; los datos persistieron |
 
-Rúbrica práctica: interfaz/estados 10; REST 10; persistencia 8; WebSockets 15; concurrencia/consistencia 10; investigación/documentación/demostración 7. La interfaz y la parte cliente de tiempo real son responsabilidad del compañero; los criterios compartidos necesitan integración real.
+Para la demostración también conviene guardar las respuestas HTTP de llamadas simultáneas, mostrar fechas del historial y probar la reconexión después de desconectar una ventana.
 
-Guion de video (máximo 5 minutos): 0:00 arquitectura y dos navegadores; 0:40 registro y validaciones; 1:30 sincronización y atención; 2:20 llamadas simultáneas con evidencia HTTP; 3:20 desconexión/reconexión y reinicio; 4:20 historial y explicación de concurrencia. El README general y las evidencias finales deben integrarse con Tania.
+Rúbrica práctica: interfaz/estados 10; REST 10; persistencia 8; WebSockets 15; concurrencia/consistencia 10; investigación/documentación/demostración 7. Conviene relacionar cada criterio con una función demostrable y su evidencia correspondiente.
 
-## Resultado de validación local
+Guion de video (máximo 5 minutos): 0:00 arquitectura y dos navegadores; 0:40 registro y validaciones; 1:30 sincronización y atención; 2:20 llamadas simultáneas con evidencia HTTP; 3:20 desconexión/reconexión y reinicio; 4:20 historial y explicación de concurrencia.
 
-En la última verificación local, `flutter test` ejecutó 9 pruebas y `flutter analyze` no reportó problemas. Las pruebas Flutter usan servicios HTTP/controlador simulados: verifican el contrato `{ "datos": [...] }`, creación sin número, errores HTTP estructurados, recuperación y ausencia de doble lectura inicial, pero no sustituyen una prueba end-to-end con ambos servidores en ejecución.
+## Resultados automatizados documentados
+
+Última ejecución disponible (estos resultados no se volvieron a ejecutar al actualizar esta documentación):
+
+- Backend: `npm test`, **37/37 pruebas aprobadas**.
+- Flutter: `flutter test`, **9 pruebas aprobadas**.
+- Flutter: `flutter analyze`, **sin problemas**.
+
+Las pruebas Flutter usan servicios HTTP/controlador simulados: verifican el contrato `{ "datos": [...] }`, creación sin número, errores HTTP estructurados, recuperación y ausencia de doble lectura inicial. No sustituyen las pruebas manuales end-to-end descritas arriba.
