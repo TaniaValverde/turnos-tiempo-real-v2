@@ -12,6 +12,7 @@ class TurnoController extends ChangeNotifier {
   final SocketService _socket;
   List<Turno> turnos = [], historial = [];
   bool loading = false, busy = false, _disposed = false, _refreshAgain = false;
+  bool _hasLoadedOnce = false, _fallbackRefreshStarted = false;
   String? error, success;
   Completer<void>? _refreshDone;
   ConnectionStatus connection = ConnectionStatus.connecting;
@@ -23,6 +24,12 @@ class TurnoController extends ChangeNotifier {
     _socket.connect(_api.baseUrl,
         onStatus: (status) {
           connection = status;
+          if (status == ConnectionStatus.disconnected &&
+              !_hasLoadedOnce &&
+              !_fallbackRefreshStarted) {
+            _fallbackRefreshStarted = true;
+            unawaited(refresh());
+          }
           _notify();
         },
         onUpdate: refresh,
@@ -30,7 +37,6 @@ class TurnoController extends ChangeNotifier {
           error = message;
           _notify();
         });
-    refresh();
   }
 
   List<Turno> porEstado(String estado) =>
@@ -59,6 +65,7 @@ class TurnoController extends ChangeNotifier {
             ..sort((a, b) => (b.atendidoEn ?? b.creadoEn)
                 .compareTo(a.atendidoEn ?? a.creadoEn)));
           error = null;
+          _hasLoadedOnce = true;
         }
       } catch (e) {
         if (!_disposed) error = e.toString();

@@ -9,12 +9,13 @@ const { createDatabase } = require('../src/config/database');
 const Turno = require('../src/models/Turno');
 const crearTurnoService = require('../src/services/turnoService');
 const { crearApp } = require('../src/app');
+const { getAllowedOrigins } = require('../src/config/cors');
 
-async function withApi(run) {
+async function withApi(run, { allowedOrigins } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'turnos-api-test-'));
   const dbPath = path.join(directory, 'api.sqlite');
   const db = createDatabase({ dbPath });
-  const app = crearApp({ service: crearTurnoService({ modelo: new Turno(db) }) });
+  const app = crearApp({ service: crearTurnoService({ modelo: new Turno(db) }), allowedOrigins });
   const server = http.createServer(app);
 
   try {
@@ -51,6 +52,39 @@ test('health y consulta de turnos responden con formato estable', () => withApi(
   assert.equal(lista.status, 200);
   assert.deepEqual(await lista.json(), { datos: [] });
 }));
+
+test('Express permite solo los orígenes CORS configurados y responde preflight', () => withApi(async ({ baseUrl }) => {
+  const permitido = await request(baseUrl, '/api/turnos', {
+    headers: { Origin: 'http://localhost:8080' },
+  });
+  assert.equal(permitido.headers.get('access-control-allow-origin'), 'http://localhost:8080');
+
+  const preflight = await request(baseUrl, '/api/turnos', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://localhost:8080',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'content-type',
+    },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET, POST, PATCH, OPTIONS');
+
+  const rechazado = await request(baseUrl, '/api/turnos', {
+    method: 'OPTIONS', headers: { Origin: 'https://no-autorizado.example' },
+  });
+  assert.equal(rechazado.status, 403);
+  assert.equal(rechazado.headers.get('access-control-allow-origin'), null);
+}, { allowedOrigins: ['http://localhost:8080'] }));
+
+test('CORS interpreta una lista de orígenes exactos y rechaza rutas o comodines', () => {
+  assert.deepEqual(
+    getAllowedOrigins('http://localhost:8080, https://turnos.example'),
+    ['http://localhost:8080', 'https://turnos.example'],
+  );
+  assert.throws(() => getAllowedOrigins('https://turnos.example/app'), /sin ruta/);
+  assert.throws(() => getAllowedOrigins('*'), /no válido/);
+});
 
 test('crea turnos y responde 400 para datos inválidos o JSON mal formado', () => withApi(async ({ baseUrl }) => {
   const creado = await request(baseUrl, '/api/turnos', {

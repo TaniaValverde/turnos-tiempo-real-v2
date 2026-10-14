@@ -31,6 +31,13 @@ Copie `.env.example` a `.env`. `DATABASE_PATH` puede ser una ruta absoluta,
 `:memory:` o una ruta relativa; las rutas relativas se resuelven desde
 `backend/`. El valor predeterminado es `backend/data/turnos.sqlite`.
 
+`CORS_ORIGINS` es una lista separada por comas de orígenes exactos (sin
+rutas), por ejemplo `http://localhost:8080,http://127.0.0.1:8080` para los
+dos comandos de desarrollo de Flutter Web del README frontend. En producción
+configúrela con el origen HTTPS real del frontend. No se aceptan comodines;
+las peticiones de otros orígenes no reciben encabezados CORS. La misma lista
+se aplica a Express y Socket.IO.
+
 ## Pruebas
 
 Desde este directorio ejecute `npm test`. Las pruebas crean bases bajo el

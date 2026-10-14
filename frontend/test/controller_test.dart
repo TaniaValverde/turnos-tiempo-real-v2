@@ -35,6 +35,18 @@ class FakeSocket extends SocketService {
 }
 Future<void> flush() => Future<void>.delayed(Duration.zero);
 void main() {
+  test('espera la instantánea Socket.IO al iniciar y hace una sola lectura', () async {
+    final api = FakeApi(); final socket = FakeSocket();
+    final controller = TurnoController(api: api, socket: socket)..start();
+    expect(api.requests, isEmpty);
+    socket.update();
+    expect(api.requests, hasLength(1));
+    api.requests.single.complete([turno(6)]);
+    await flush();
+    expect(controller.turnos.single.numero, 6);
+    expect(api.requests, hasLength(1));
+    controller.dispose();
+  });
   test('descarta lecturas invalidadas y recupera estado al recibir eventos', () async {
     final api = FakeApi(); final socket = FakeSocket();
     final controller = TurnoController(api: api, socket: socket)..start();

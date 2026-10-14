@@ -3,13 +3,17 @@ const { Server: SocketServer } = require('socket.io');
 const crearApp = require('./app');
 const crearTurnoService = require('./services/turnoService');
 const registrarTurnoSocket = require('./sockets/turnoSocket');
+const { getAllowedOrigins } = require('./config/cors');
 
-function crearServidor({ service = crearTurnoService(), SocketServerClass = SocketServer } = {}) {
-  const io = new SocketServerClass();
+function crearServidor({ service = crearTurnoService(), SocketServerClass = SocketServer, allowedOrigins = getAllowedOrigins() } = {}) {
+  const io = new SocketServerClass({
+    cors: { origin: allowedOrigins, methods: ['GET', 'POST'] },
+  });
   const sockets = registrarTurnoSocket(io, service);
   const app = crearApp({
     service,
     onTurnosActualizados: sockets.notificarActualizados,
+    allowedOrigins,
   });
   const server = http.createServer(app);
   io.attach(server);

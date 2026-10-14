@@ -1,6 +1,7 @@
 const express = require('express');
 const crearTurnoRoutes = require('./routes/turnoRoutes');
 const crearTurnoService = require('./services/turnoService');
+const { getAllowedOrigins, crearCorsMiddleware } = require('./config/cors');
 const {
   ErrorValidacion,
   TurnoNoEncontradoError,
@@ -9,9 +10,10 @@ const {
   TransicionEstadoInvalidaError,
 } = crearTurnoService;
 
-function crearApp({ service = crearTurnoService(), onTurnosActualizados } = {}) {
+function crearApp({ service = crearTurnoService(), onTurnosActualizados, allowedOrigins = getAllowedOrigins() } = {}) {
   const app = express();
 
+  app.use(crearCorsMiddleware(allowedOrigins));
   app.use(express.json());
   app.get('/api/health', (req, res) => {
     res.status(200).json({ estado: 'ok' });

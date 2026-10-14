@@ -21,7 +21,6 @@ class SocketService {
     _socket = socket;
     socket.onConnect((_) {
       onStatus(ConnectionStatus.connected);
-      onUpdate();
       socket.emit('turnos:solicitar_estado');
     });
     socket.onDisconnect((_) => onStatus(ConnectionStatus.disconnected));

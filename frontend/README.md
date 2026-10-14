@@ -33,25 +33,28 @@ flutter build web --dart-define=API_URL=http://localhost:3000
 
 El servidor asigna números y decide transiciones. Flutter no elige el siguiente turno ni genera consecutivos. Deshabilitar botones durante una solicitud evita dobles clics locales, pero no garantiza exclusión entre funcionarios.
 
-## Contrato propuesto para integrar con Tania
-
-Este contrato procede de la distribución de trabajo y todavía requiere validación contra el backend implementado.
+## Contrato REST y Socket.IO actual
 
 | Operación | Solicitud | Respuesta esperada |
 | --- | --- | --- |
-| Listar | GET /api/turnos | 200, lista JSON o `{ "turnos": [...] }` |
-| Registrar | POST /api/turnos con `{ "nombre": "Ana", "motivo": "Consulta" }` | 201, JSON opcional |
-| Llamar siguiente | POST /api/turnos/siguiente | 200, JSON opcional; 409 si no puede llamarse |
-| Atender | PATCH /api/turnos/:id con `{ "estado": "atendido" }` | 200 o 204 |
-| Historial | GET /api/turnos/historial | 200, lista JSON o `{ "turnos": [...] }` |
+| Listar | GET /api/turnos | 200, `{ "datos": [turno, ...] }` |
+| Registrar | POST /api/turnos con `{ "nombre": "Ana", "motivo": "Consulta" }` | 201, `{ "datos": turno }`; el servidor asigna `numero` |
+| Llamar siguiente | POST /api/turnos/siguiente | 200, `{ "datos": turno }`; 404 `SIN_TURNOS_PENDIENTES` si no hay pendientes |
+| Atender | PATCH /api/turnos/:id con `{ "estado": "atendido" }` | 200, `{ "datos": turno }` |
+| Historial | GET /api/turnos/historial | 200, `{ "datos": [turno, ...] }` |
+| Salud | GET /api/health | 200, `{ "estado": "ok" }` |
 
-Cada turno contiene `id` y `numero` enteros, `nombre`, `motivo`, `estado` (`pendiente`, `llamado`, `atendido`), `creado_en` ISO 8601 UTC y `atendido_en` ISO 8601 UTC o null. Las fechas se muestran en la zona horaria del navegador. Errores: código HTTP no exitoso y `{ "message": "Explicación" }` o `{ "error": "Explicación" }`.
+Cada turno contiene `id` y `numero` enteros, `nombre`, `motivo`, `estado` (`pendiente`, `llamado`, `atendido`), `creado_en` ISO 8601 UTC y `atendido_en` ISO 8601 UTC o null. Las fechas se muestran en la zona horaria del navegador. Los errores usan el código HTTP y `{ "error": { "codigo": "...", "mensaje": "..." } }`. Flutter conserva el código HTTP y el código de dominio; para respuestas 500 muestra un mensaje genérico.
 
 - Flutter → servidor: `turnos:solicitar_estado` al conectar y reconectar.
-- Servidor → Flutter: `turnos:actualizados` después de confirmar cada escritura y como respuesta a la solicitud de estado. El frontend usa el evento para obtener listas vigentes por REST; no depende de un payload específico.
+- Servidor → Flutter: `turnos:actualizados` con `{ "datos": [...] }` después de confirmar cada escritura y como respuesta a la solicitud de estado. El frontend usa el evento para obtener por REST las listas actuales y el historial.
 - Servidor → Flutter: `turnos:error` opcional.
 
-No hay consulta periódica. Los eventos WebSocket desencadenan la recuperación. Si llega un evento durante una consulta, el controlador descarta esa lectura y vuelve a consultar. Los eventos acumulados se agrupan para evitar solicitudes paralelas desordenadas. En caso de error se conservan los datos anteriores y se avisa al usuario; no se simula éxito ni se reintenta automáticamente una escritura cuyo resultado se desconoce.
+No hay consulta periódica. La primera conexión y cada reconexión solicitan una instantánea Socket.IO; esa respuesta inicia una lectura REST de listado e historial. Si la conexión inicial falla, el controlador hace una única lectura REST de respaldo. Los eventos de escritura también desencadenan recuperación; si llega otro evento durante una consulta, el controlador descarta esa instantánea y repite la lectura. En caso de error se conservan los datos anteriores y se avisa al usuario; no se reintenta automáticamente una escritura cuyo resultado se desconoce.
+
+### CORS para Flutter Web
+
+Configura `CORS_ORIGINS` en `backend/.env` con los orígenes exactos donde se sirve Flutter, separados por comas y sin rutas. En desarrollo suelen ser `http://localhost:8080` y `http://127.0.0.1:8080`; en producción configura el origen HTTPS del frontend. Express y Socket.IO comparten esta lista. La URL del backend se configura al ejecutar Flutter con `--dart-define=API_URL=...`.
 
 ## Investigación para la parte práctica
 
@@ -59,7 +62,7 @@ HTTP sigue un intercambio de solicitud y respuesta y resulta adecuado para las o
 
 Reconectar el transporte no garantiza recuperar eventos perdidos. Por ello cada conexión recupera el estado vigente por REST y solicita estado al servidor. La interfaz indica si la conexión de tiempo real se perdió. Véanse las [garantías de entrega de Socket.IO](https://socket.io/docs/v4/delivery-guarantees/) y su [comportamiento sin conexión](https://socket.io/docs/v4/client-offline-behavior/). La [guía Flutter de WebSockets](https://docs.flutter.dev/cookbook/networking/web-sockets) explica la comunicación bidireccional sin consultas periódicas.
 
-La concurrencia debe resolverse en el backend mediante una operación atómica/transacción que seleccione y cambie el turno pendiente. Una segunda solicitud no puede reclamar el mismo registro. Emitir después del commit evita anunciar cambios que luego se revierten. Esta es la estrategia requerida para integrar; el servicio backend actual aún está pendiente y no se afirma que ya la implemente.
+La concurrencia se resuelve en el backend mediante una operación SQLite atómica que selecciona y cambia el turno pendiente; las escrituras REST notifican Socket.IO después del commit.
 
 ## Verificación y evidencia pendientes de integración
 
@@ -79,4 +82,4 @@ Guion de video (máximo 5 minutos): 0:00 arquitectura y dos navegadores; 0:40 re
 
 ## Resultado de validación local
 
-Las 7 pruebas automatizadas de REST, formulario y controlador pasaron. Cubren datos de creación sin consecutivo local, conflictos HTTP, fechas UTC, validación y conservación del formulario, eventos durante lecturas, recuperación después de errores y bloqueo de doble envío. Estas pruebas utilizan servicios simulados: no acreditan integración real, concurrencia del backend ni persistencia.
+En la última verificación local, `flutter test` ejecutó 9 pruebas y `flutter analyze` no reportó problemas. Las pruebas Flutter usan servicios HTTP/controlador simulados: verifican el contrato `{ "datos": [...] }`, creación sin número, errores HTTP estructurados, recuperación y ausencia de doble lectura inicial, pero no sustituyen una prueba end-to-end con ambos servidores en ejecución.

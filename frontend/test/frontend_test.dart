@@ -20,28 +20,61 @@ void main() {
   test('propaga conflictos del servidor', () async {
     final api = ApiService(
         client: MockClient((_) async => http.Response(
-            jsonEncode({'message': 'El turno ya fue llamado.'}), 409)));
-    await expectLater(api.llamarSiguiente(), throwsA(isA<ApiException>()));
+            jsonEncode({
+              'error': {
+                'codigo': 'SIN_TURNOS_PENDIENTES',
+                'mensaje': 'No hay turnos pendientes para llamar.'
+              }
+            }),
+            404)));
+    await expectLater(
+        api.llamarSiguiente(),
+        throwsA(isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 404)
+            .having((error) => error.code, 'code', 'SIN_TURNOS_PENDIENTES')
+            .having((error) => error.message, 'message',
+                'No hay turnos pendientes para llamar.')));
     api.dispose();
   });
-  test('interpreta fechas UTC y formato de lista', () async {
-    final api = ApiService(
-        client: MockClient((_) async => http.Response(
-            jsonEncode([
-              {
-                'id': 1,
-                'numero': 8,
-                'nombre': 'Ana',
-                'motivo': 'Consulta',
-                'estado': 'atendido',
-                'creado_en': '2026-10-14T12:00:00.000Z',
-                'atendido_en': '2026-10-14T12:05:00.000Z'
-              }
-            ]),
-            200)));
-    final rows = await api.listar(historial: true);
-    expect(rows.single.numero, 8);
-    expect(rows.single.atendidoEn!.isUtc, isTrue);
+  test('interpreta {datos: [...]} en listado e historial', () async {
+    final paths = <String>[];
+    final api = ApiService(client: MockClient((request) async {
+      paths.add(request.url.path);
+      return http.Response(jsonEncode({
+        'datos': [
+          {
+            'id': 1,
+            'numero': 8,
+            'nombre': 'Ana',
+            'motivo': 'Consulta',
+            'estado': 'atendido',
+            'creado_en': '2026-10-14T12:00:00.000Z',
+            'atendido_en': '2026-10-14T12:05:00.000Z'
+          }
+        ]
+      }), 200);
+    }));
+    final actuales = await api.listar();
+    final historial = await api.listar(historial: true);
+    expect(paths, ['/api/turnos', '/api/turnos/historial']);
+    expect(actuales.single.numero, 8);
+    expect(historial.single.atendidoEn!.isUtc, isTrue);
+    api.dispose();
+  });
+  test('no muestra mensajes internos para errores HTTP 500', () async {
+    final api = ApiService(client: MockClient((_) async => http.Response(
+        jsonEncode({
+          'error': {'codigo': 'ERROR_INTERNO', 'mensaje': r'C:\private\db.sqlite'}
+        }),
+        500)));
+    await expectLater(
+        api.listar(),
+        throwsA(isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 500)
+            .having((error) => error.code, 'code', 'ERROR_INTERNO')
+            .having((error) => error.message, 'message',
+                'El servidor no pudo completar la operación.')
+            .having((error) => error.message, 'message', isNot(contains('private')))));
     api.dispose();
   });
   testWidgets('valida vacíos, conserva datos ante error y limpia tras éxito',

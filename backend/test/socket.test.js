@@ -12,11 +12,11 @@ const Turno = require('../src/models/Turno');
 const crearTurnoService = require('../src/services/turnoService');
 const crearServidor = require('../src/server');
 
-async function withRealtimeServer(run) {
+async function withRealtimeServer(run, { allowedOrigins } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'turnos-socket-test-'));
   const db = createDatabase({ dbPath: path.join(directory, 'turnos.sqlite') });
   const service = crearTurnoService({ modelo: new Turno(db) });
-  const { server, io } = crearServidor({ service });
+  const { server, io } = crearServidor({ service, allowedOrigins });
   const clients = [];
 
   try {
@@ -63,6 +63,27 @@ test('crea una única instancia Socket.IO asociada al servidor HTTP', () => with
   await esperarConexion(cliente);
   assert.equal(cliente.connected, true);
 }));
+
+test('Socket.IO aplica CORS al origen Flutter configurado y no anuncia otros', () => withRealtimeServer(async ({ baseUrl }) => {
+  const endpoint = `${baseUrl}/socket.io/?EIO=4&transport=polling`;
+  const permitido = await fetch(endpoint, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://localhost:8080',
+      'Access-Control-Request-Method': 'GET',
+    },
+  });
+  assert.equal(permitido.headers.get('access-control-allow-origin'), 'http://localhost:8080');
+
+  const rechazado = await fetch(endpoint, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'https://no-autorizado.example',
+      'Access-Control-Request-Method': 'GET',
+    },
+  });
+  assert.equal(rechazado.headers.get('access-control-allow-origin'), null);
+}, { allowedOrigins: ['http://localhost:8080'] }));
 
 test('importar el módulo del servidor no abre la base de desarrollo ni inicia listeners', () => {
   const backendDirectory = path.resolve(__dirname, '..');

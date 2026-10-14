@@ -4,8 +4,10 @@ import 'package:http/http.dart' as http;
 import '../models/turno.dart';
 
 class ApiException implements Exception {
-  const ApiException(this.message);
+  const ApiException(this.message, {this.statusCode, this.code});
   final String message;
+  final int? statusCode;
+  final String? code;
   @override
   String toString() => message;
 }
@@ -35,10 +37,20 @@ class ApiService {
         throw const ApiException('Respuesta del servidor no válida.');
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final message = data is Map ? (data['message'] ?? data['error']) : null;
-        throw ApiException(message is String
-            ? message
-            : 'No se pudo completar la operación (${response.statusCode}).');
+        final error = data is Map ? data['error'] : null;
+        final code = error is Map && error['codigo'] is String
+            ? error['codigo'] as String
+            : null;
+        final serverMessage = error is Map && error['mensaje'] is String
+            ? (error['mensaje'] as String).trim()
+            : '';
+        final message = response.statusCode >= 500
+            ? 'El servidor no pudo completar la operación.'
+            : serverMessage.isNotEmpty
+                ? serverMessage
+                : 'No se pudo completar la operación (${response.statusCode}).';
+        throw ApiException(message,
+            statusCode: response.statusCode, code: code);
       }
       return data;
     } on TimeoutException {
@@ -53,7 +65,7 @@ class ApiService {
   Future<List<Turno>> listar({bool historial = false}) async {
     final data =
         await _request('GET', historial ? '/turnos/historial' : '/turnos');
-    final rows = data is Map ? data['turnos'] : data;
+    final rows = data is Map ? data['datos'] : null;
     if (rows is! List) throw const ApiException('Formato de lista no válido.');
     try {
       return rows
