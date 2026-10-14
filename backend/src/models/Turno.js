@@ -10,12 +10,38 @@ class Turno {
     this.db = db;
   }
 
-  crear({ numero, nombre, motivo }) {
-    const result = this.db.prepare(`
-      INSERT INTO turnos (numero, nombre, motivo)
-      VALUES (@numero, @nombre, @motivo)
-    `).run({ numero, nombre, motivo });
-    return this.buscarPorId(Number(result.lastInsertRowid));
+  crear({ nombre, motivo }) {
+    let numeroAsignado;
+    const insertar = this.db.transaction(() => {
+      const secuencia = this.db.prepare(`
+        SELECT ultimo_numero FROM secuencia_turnos WHERE id = 1
+      `).get();
+      if (!secuencia) throw new Error('No se inicializó la secuencia de turnos.');
+
+      // MAX(numero) también contempla inserciones administrativas directas;
+      // el contador persistente evita reutilizar números después de borrar.
+      const existente = this.db.prepare('SELECT COALESCE(MAX(numero), 0) AS maximo FROM turnos').get();
+      numeroAsignado = Math.max(secuencia.ultimo_numero, existente.maximo) + 1;
+      if (!Number.isSafeInteger(numeroAsignado)) throw new RangeError('Se agotó la secuencia de números de turno.');
+
+      this.db.prepare(`
+        UPDATE secuencia_turnos SET ultimo_numero = @numero WHERE id = 1
+      `).run({ numero: numeroAsignado });
+      const result = this.db.prepare(`
+        INSERT INTO turnos (numero, nombre, motivo)
+        VALUES (@numero, @nombre, @motivo)
+      `).run({ numero: numeroAsignado, nombre, motivo });
+      return this.buscarPorId(Number(result.lastInsertRowid));
+    });
+
+    // IMMEDIATE obtiene la reserva de escritura antes de leer/asignar
+    // la secuencia; la actualización del contador y el INSERT son atómicos.
+    try {
+      return insertar.immediate();
+    } catch (error) {
+      if (error?.code === 'SQLITE_CONSTRAINT_UNIQUE') error.numero = numeroAsignado;
+      throw error;
+    }
   }
 
   buscarPorId(id) {

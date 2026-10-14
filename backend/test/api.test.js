@@ -54,15 +54,15 @@ test('health y consulta de turnos responden con formato estable', () => withApi(
 
 test('crea turnos y responde 400 para datos inválidos o JSON mal formado', () => withApi(async ({ baseUrl }) => {
   const creado = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: 10, nombre: 'Eva', motivo: 'Consulta' },
+    method: 'POST', body: { nombre: 'Eva', motivo: 'Consulta' },
   });
   assert.equal(creado.status, 201);
   const { datos } = await creado.json();
-  assert.equal(datos.numero, 10);
+  assert.equal(datos.numero, 1);
   assert.equal(datos.estado, 'pendiente');
 
   const invalido = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: -1, nombre: '', motivo: 'Consulta' },
+    method: 'POST', body: { nombre: '', motivo: 'Consulta' },
   });
   assert.equal(invalido.status, 400);
   assert.equal((await invalido.json()).error.codigo, 'VALIDACION');
@@ -74,9 +74,9 @@ test('crea turnos y responde 400 para datos inválidos o JSON mal formado', () =
   assert.equal((await jsonMalformado.json()).error.codigo, 'JSON_INVALIDO');
 }));
 
-test('actualiza estado y traduce inexistencia, transición y duplicado', () => withApi(async ({ baseUrl }) => {
+test('actualiza estado y traduce inexistencia y transición; el servidor asigna el número', () => withApi(async ({ baseUrl }) => {
   const response = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: 11, nombre: 'Leo', motivo: 'Ayuda' },
+    method: 'POST', body: { nombre: 'Leo', motivo: 'Ayuda' },
   });
   const turno = (await response.json()).datos;
 
@@ -97,16 +97,16 @@ test('actualiza estado y traduce inexistencia, transición y duplicado', () => w
   });
   assert.equal(inexistente.status, 404);
 
-  const duplicado = await request(baseUrl, '/api/turnos', {
+  const segundo = await request(baseUrl, '/api/turnos', {
     method: 'POST', body: { numero: 11, nombre: 'Otra', motivo: 'Ayuda' },
   });
-  assert.equal(duplicado.status, 409);
-  assert.equal((await duplicado.json()).error.codigo, 'NUMERO_TURNO_DUPLICADO');
+  assert.equal(segundo.status, 201);
+  assert.equal((await segundo.json()).datos.numero, 2);
 }));
 
 test('historial, siguiente y asignación de estado funcionan por API', () => withApi(async ({ baseUrl }) => {
   const response = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: 12, nombre: 'Sol', motivo: 'Trámite' },
+    method: 'POST', body: { nombre: 'Sol', motivo: 'Trámite' },
   });
   const turno = (await response.json()).datos;
   const siguienteLlamado = await request(baseUrl, '/api/turnos/siguiente', { method: 'POST' });
@@ -127,7 +127,7 @@ test('solicitudes simultáneas no reciben el mismo turno', () => withApi(async (
   const turnos = [];
   for (let numero = 20; numero < 25; numero += 1) {
     const response = await request(baseUrl, '/api/turnos', {
-      method: 'POST', body: { numero, nombre: `Persona ${numero}`, motivo: 'Consulta' },
+      method: 'POST', body: { nombre: `Persona ${numero}`, motivo: 'Consulta' },
     });
     turnos.push((await response.json()).datos);
   }
@@ -147,6 +147,19 @@ test('solicitudes simultáneas no reciben el mismo turno', () => withApi(async (
   assert.equal(sinPendientes, respuestas.length - turnos.length);
   const estados = new Map(new Turno(db).listarTodos().map(({ id, estado }) => [id, estado]));
   for (const id of asignados) assert.equal(estados.get(id), 'llamado');
+}));
+
+test('creaciones HTTP simultáneas asignan números únicos y consecutivos', () => withApi(async ({ baseUrl }) => {
+  const respuestas = await Promise.all(Array.from({ length: 16 }, (_, indice) =>
+    request(baseUrl, '/api/turnos', {
+      method: 'POST', body: { nombre: `Persona ${indice}`, motivo: 'Consulta' },
+    })));
+  const numeros = [];
+  for (const respuesta of respuestas) {
+    assert.equal(respuesta.status, 201);
+    numeros.push((await respuesta.json()).datos.numero);
+  }
+  assert.deepEqual(numeros.sort((a, b) => a - b), Array.from({ length: 16 }, (_, indice) => indice + 1));
 }));
 
 test('no expone errores internos al cliente', () => withApi(async ({ baseUrl, db }) => {

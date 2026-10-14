@@ -79,7 +79,7 @@ test('importar el módulo del servidor no abre la base de desarrollo ni inicia l
 });
 
 test('solicitar estado responde solo al solicitante con el formato de REST', () => withRealtimeServer(async ({ connect, service }) => {
-  const turno = service.crear({ numero: 1, nombre: 'Ana', motivo: 'Consulta' });
+  const turno = service.crear({ nombre: 'Ana', motivo: 'Consulta' });
   const solicitante = connect();
   const otro = connect();
   await Promise.all([esperarConexion(solicitante), esperarConexion(otro)]);
@@ -100,7 +100,7 @@ test('REST emite el snapshot actualizado después de crear, cambiar estado y asi
 
   const creadoEvento = esperarEvento(cliente, 'turnos:actualizados');
   const creadoRespuesta = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: 2, nombre: 'Beto', motivo: 'Información' },
+    method: 'POST', body: { nombre: 'Beto', motivo: 'Información' },
   });
   assert.equal(creadoRespuesta.status, 201);
   const creado = (await creadoRespuesta.json()).datos;
@@ -116,7 +116,7 @@ test('REST emite el snapshot actualizado después de crear, cambiar estado y asi
 
   const otroCreadoEvento = esperarEvento(cliente, 'turnos:actualizados');
   const otroCreadoRespuesta = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: 3, nombre: 'Carla', motivo: 'Consulta' },
+    method: 'POST', body: { nombre: 'Carla', motivo: 'Consulta' },
   });
   assert.equal(otroCreadoRespuesta.status, 201);
   await otroCreadoEvento;
@@ -133,16 +133,16 @@ test('REST emite el snapshot actualizado después de crear, cambiar estado y asi
 }));
 
 test('operaciones REST fallidas no emiten eventos de éxito', () => withRealtimeServer(async ({ baseUrl, connect, service }) => {
-  service.crear({ numero: 4, nombre: 'Dani', motivo: 'Consulta' });
+  service.crear({ nombre: 'Dani', motivo: 'Consulta' });
   const cliente = connect();
   await esperarConexion(cliente);
   let notificaciones = 0;
   cliente.on('turnos:actualizados', () => { notificaciones += 1; });
 
-  const duplicado = await request(baseUrl, '/api/turnos', {
-    method: 'POST', body: { numero: 4, nombre: 'Otra', motivo: 'Duplicado' },
+  const invalido = await request(baseUrl, '/api/turnos', {
+    method: 'POST', body: { nombre: '', motivo: 'Duplicado' },
   });
-  assert.equal(duplicado.status, 409);
+  assert.equal(invalido.status, 400);
 
   const transicionInvalida = await request(baseUrl, '/api/turnos/1', {
     method: 'PATCH', body: { estado: 'atendido' },
@@ -180,7 +180,7 @@ test('los errores al solicitar estado se notifican sin detalles internos', () =>
 }));
 
 test('un cliente reconectado puede solicitar y recibir el estado vigente', () => withRealtimeServer(async ({ connect, service }) => {
-  service.crear({ numero: 5, nombre: 'Eva', motivo: 'Revisión' });
+  service.crear({ nombre: 'Eva', motivo: 'Revisión' });
   const primerCliente = connect();
   await esperarConexion(primerCliente);
   primerCliente.disconnect();
@@ -189,5 +189,5 @@ test('un cliente reconectado puede solicitar y recibir el estado vigente', () =>
   await esperarConexion(reconectado);
   const estado = esperarEvento(reconectado, 'turnos:actualizados');
   reconectado.emit('turnos:solicitar_estado');
-  assert.equal((await estado).datos[0].numero, 5);
+  assert.equal((await estado).datos[0].numero, 1);
 }));

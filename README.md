@@ -9,10 +9,10 @@ Proyecto iniciado desde cero para el examen de Desarrollo de Software IV. El obj
 - **Persistencia**: SQLite mediante `better-sqlite3`.
 - **Tiempo real**: Socket.IO en el backend y `socket_io_client` en Flutter.
 
-## Estado de esta fase
+## Estado del backend
 
-Se crea únicamente la estructura inicial y archivos de referencia. La conexión SQLite, el modelo completo de `Turno`, las reglas de negocio, endpoints y eventos se implementarán en fases posteriores. No se han instalado dependencias.
+El backend incluye persistencia SQLite, modelo y servicio de turnos, API REST y eventos Socket.IO. `POST /api/turnos` recibe `nombre` y `motivo`; el backend asigna un número global creciente y no reutilizable. La migración de secuencia conserva los turnos existentes. Consulta [backend/README.md](backend/README.md) para el contrato y la configuración.
 
 ## Inicio posterior
 
-Cuando se autorice implementar y preparar el entorno, se podrán instalar dependencias desde `backend/` y `frontend/` siguiendo sus manifiestos (`package.json` y `pubspec.yaml`). Para configurar el entorno del backend, copia `backend/.env.example` a `backend/.env` y completa valores locales sin publicar secretos.
+Las dependencias del backend se administran desde `backend/` mediante `package.json`; las del frontend desde `frontend/` con `pubspec.yaml`. Para configurar el backend, copia `backend/.env.example` a `backend/.env` y completa los valores locales sin publicar secretos.

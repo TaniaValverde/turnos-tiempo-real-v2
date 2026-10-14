@@ -75,10 +75,7 @@ function validarEntradaTurno(datos) {
     throw new ErrorValidacion('Los datos del turno deben ser un objeto.');
   }
 
-  const { numero, nombre, motivo } = datos;
-  if (!Number.isSafeInteger(numero) || numero <= 0) {
-    throw new ErrorValidacion('El número de turno debe ser un entero positivo.');
-  }
+  const { nombre, motivo } = datos;
   if (typeof nombre !== 'string' || nombre.trim().length === 0) {
     throw new ErrorValidacion('El nombre es obligatorio y debe ser texto no vacío.');
   }
@@ -102,13 +99,12 @@ function crearTurnoService({ modelo = new Turno() } = {}) {
       validarEntradaTurno(datos);
       try {
         return modelo.crear({
-          numero: datos.numero,
           nombre: datos.nombre.trim(),
           motivo: datos.motivo.trim(),
         });
       } catch (error) {
         if (esErrorNumeroDuplicado(error)) {
-          throw new NumeroTurnoDuplicadoError(datos.numero, { cause: error });
+          throw new NumeroTurnoDuplicadoError(error.numero, { cause: error });
         }
         throw new ErrorPersistencia('No se pudo guardar el turno.', { cause: error });
       }

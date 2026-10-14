@@ -28,6 +28,13 @@ const CREATE_TURNOS_TABLE = `
   )
 `;
 
+const CREATE_SECUENCIA_TURNOS_TABLE = `
+  CREATE TABLE IF NOT EXISTS secuencia_turnos (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    ultimo_numero INTEGER NOT NULL CHECK (ultimo_numero >= 0)
+  )
+`;
+
 // Relative DATABASE_PATH values are resolved from the backend directory.
 function resolveDatabasePath(dbPath = process.env.DATABASE_PATH || DEFAULT_DB_PATH) {
   if (dbPath === ':memory:') return dbPath;
@@ -38,6 +45,22 @@ function initializeDatabase(db) {
   db.pragma('foreign_keys = ON');
   db.pragma('journal_mode = WAL');
   db.exec(CREATE_TURNOS_TABLE);
+
+  // Migration idempotente: conserva los turnos y eleva el contador al
+  // menos hasta el mayor número ya existente. La transacción IMMEDIATE
+  // serializa inicializaciones simultáneas de una base antigua.
+  const migrarSecuencia = db.transaction(() => {
+    db.exec(CREATE_SECUENCIA_TURNOS_TABLE);
+    db.prepare(`
+      INSERT INTO secuencia_turnos (id, ultimo_numero)
+      VALUES (1, COALESCE((SELECT MAX(numero) FROM turnos), 0))
+      ON CONFLICT(id) DO UPDATE SET ultimo_numero = MAX(
+        secuencia_turnos.ultimo_numero,
+        excluded.ultimo_numero
+      )
+    `).run();
+  });
+  migrarSecuencia.immediate();
   return db;
 }
 
@@ -60,4 +83,5 @@ module.exports = {
   createDatabase,
   resolveDatabasePath,
   CREATE_TURNOS_TABLE,
+  CREATE_SECUENCIA_TURNOS_TABLE,
 };
