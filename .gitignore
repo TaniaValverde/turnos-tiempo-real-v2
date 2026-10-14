@@ -14,6 +14,8 @@ pnpm-debug.log*
 *.sqlite3
 *.db
 *.db-journal
+*-wal
+*-shm
 
 # Flutter / Dart
 .dart_tool/

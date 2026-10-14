@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
+require('dotenv').config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
 const DEFAULT_DB_PATH = path.join(__dirname, '..', '..', 'data', 'turnos.sqlite');
 
@@ -27,9 +28,10 @@ const CREATE_TURNOS_TABLE = `
   )
 `;
 
-function resolveDatabasePath(dbPath = process.env.DB_PATH || DEFAULT_DB_PATH) {
+// Relative DATABASE_PATH values are resolved from the backend directory.
+function resolveDatabasePath(dbPath = process.env.DATABASE_PATH || DEFAULT_DB_PATH) {
   if (dbPath === ':memory:') return dbPath;
-  return path.resolve(dbPath);
+  return path.resolve(__dirname, '..', '..', dbPath);
 }
 
 function initializeDatabase(db) {
@@ -54,9 +56,8 @@ function createDatabase({ dbPath, DatabaseConstructor = Database } = {}) {
   }
 }
 
-const database = createDatabase();
-
-module.exports = database;
-module.exports.createDatabase = createDatabase;
-module.exports.resolveDatabasePath = resolveDatabasePath;
-module.exports.CREATE_TURNOS_TABLE = CREATE_TURNOS_TABLE;
+module.exports = {
+  createDatabase,
+  resolveDatabasePath,
+  CREATE_TURNOS_TABLE,
+};
