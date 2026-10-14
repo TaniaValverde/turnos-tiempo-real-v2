@@ -1,9 +1,9 @@
-const defaultDatabase = require('../config/database');
+const { createDatabase } = require('../config/database');
 
 const ESTADOS_VALIDOS = Object.freeze(['pendiente', 'llamado', 'atendido']);
 
 class Turno {
-  constructor(db = defaultDatabase) {
+  constructor(db = createDatabase()) {
     if (!db || typeof db.prepare !== 'function') {
       throw new TypeError('Turno requiere una conexión SQLite compatible.');
     }
@@ -70,6 +70,25 @@ class Turno {
       ORDER BY numero ASC, id ASC
       LIMIT 1
     `).get() ?? null;
+  }
+
+  llamarSiguientePendiente() {
+    const asignar = this.db.transaction(() => {
+      const siguiente = this.consultarSiguientePendiente();
+      if (!siguiente) return null;
+
+      const resultado = this.db.prepare(`
+        UPDATE turnos
+        SET estado = 'llamado'
+        WHERE id = @id AND estado = 'pendiente'
+      `).run({ id: siguiente.id });
+
+      if (resultado.changes !== 1) return null;
+      return this.buscarPorId(siguiente.id);
+    });
+
+    // Acquire SQLite's write reservation before selecting to serialize allocators.
+    return asignar.immediate();
   }
 }
 

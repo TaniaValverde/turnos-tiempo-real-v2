@@ -1,17 +1,29 @@
 const http = require('node:http');
-const app = require('./app');
-const registerTurnoSocket = require('./sockets/turnoSocket');
+const { Server: SocketServer } = require('socket.io');
+const crearApp = require('./app');
+const crearTurnoService = require('./services/turnoService');
+const registrarTurnoSocket = require('./sockets/turnoSocket');
 
-const server = http.createServer(app);
+function crearServidor({ service = crearTurnoService(), SocketServerClass = SocketServer } = {}) {
+  const io = new SocketServerClass();
+  const sockets = registrarTurnoSocket(io, service);
+  const app = crearApp({
+    service,
+    onTurnosActualizados: sockets.notificarActualizados,
+  });
+  const server = http.createServer(app);
+  io.attach(server);
 
-// La inicialización de Socket.IO se completará al implementar los eventos.
-registerTurnoSocket();
+  return { app, server, io, service };
+}
 
 if (require.main === module) {
+  const { server } = crearServidor();
   const port = Number(process.env.PORT) || 3000;
   server.listen(port, () => {
     console.log(`Servidor preparado en el puerto ${port}`);
   });
 }
 
-module.exports = server;
+module.exports = crearServidor;
+module.exports.crearServidor = crearServidor;
